@@ -87,39 +87,33 @@ async function updateAttendanceRecords() {
             
             console.log('Updating attendance table with', result.data.length, 'records');
             
-            // Add fade effect
-            tbody.style.opacity = '0.5';
-            tbody.style.transition = 'opacity 0.3s ease';
-            
-            if (result.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No attendance records found</td></tr>';
-                tbody.style.opacity = '1';
-                return;
+            const escapeHtml = value => String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[character]);
+            const rows = result.data.map(record => [
+                escapeHtml(record.id),
+                escapeHtml(record.employee_id),
+                escapeHtml(record.first_name),
+                escapeHtml(record.last_name),
+                escapeHtml(record.position),
+                escapeHtml(record.clock_in),
+                escapeHtml(record.clock_out || '-'),
+                escapeHtml(record.type),
+                escapeHtml(record.details),
+                `<span style="color: ${record.status === 'Complete' ? '#10b981' : '#f59e0b'}; font-weight: 500;">${escapeHtml(record.status)}</span>`
+            ]);
+
+            if (window.attendanceTable) {
+                window.attendanceTable.clear().rows.add(rows).draw(false);
+            } else {
+                tbody.innerHTML = rows.map(row =>
+                    `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`
+                ).join('');
             }
-            
-            let html = '';
-            result.data.forEach((record, index) => {
-                html += `
-                    <tr style="animation: slideIn 0.3s ease ${index * 0.05}s both;">
-                        <td>${record.id}</td>
-                        <td>${record.employee_id}</td>
-                        <td>${record.first_name}</td>
-                        <td>${record.last_name}</td>
-                        <td>${record.position}</td>
-                        <td>${record.clock_in}</td>
-                        <td>${record.clock_out || '-'}</td>
-                        <td>${record.type.toLowerCase() === 'daily' ? 'Daily' : record.type}</td>
-                        <td>${record.details || ''}</td>
-                        <td><span style="color: ${record.status === 'Complete' ? '#10b981' : '#f59e0b'}; font-weight: 500;">${record.status || ''}</span></td>
-                    </tr>
-                `;
-            });
-            tbody.innerHTML = html;
-            
-            // Fade back in
-            setTimeout(() => {
-                tbody.style.opacity = '1';
-            }, 100);
             
             console.log('Attendance table updated successfully!');
         }
@@ -490,6 +484,7 @@ function initAttendanceScanner() {
 // ============================================
 
 let employeeTable;
+let attendanceTable;
 
 // Handle QR Code Format modal
 function initQRModal() {
@@ -509,12 +504,57 @@ function initDataTable() {
         if (!$.fn.dataTable.isDataTable('#employeeTable')) {
             employeeTable = $('#employeeTable').DataTable({
                 responsive: true,
-                dom: 'Bfrtip',
+                paging: true,
+                dom: 'Blfrtip',
                 buttons: [
-                    'copy', 'csv', 'excel', 'pdf', 'print'
+                    'copy',
+                    'csv',
+                    'excel',
+                    'pdf',
+                    {
+                        extend: 'print',
+                        title: 'Employee Information',
+                        exportOptions: {
+                            columns: [1, 2, 3, 4, 5, 6],
+                            modifier: {
+                                page: 'all',
+                                search: 'applied',
+                                order: 'applied'
+                            }
+                        },
+                        customize: function(win) {
+                            $(win.document.body).css({
+                                'font-family': 'Arial, sans-serif',
+                                'font-size': '11pt'
+                            });
+
+                            $(win.document.body).find('h1').css({
+                                'text-align': 'center',
+                                'font-size': '18pt',
+                                'margin-bottom': '12px'
+                            });
+
+                            $(win.document.body).find('table').css({
+                                'border-collapse': 'collapse',
+                                'width': '100%',
+                                'font-size': '10pt'
+                            });
+
+                            $(win.document.body).find('table th, table td').css({
+                                'border': '1px solid #000',
+                                'padding': '6px',
+                                'text-align': 'left'
+                            });
+
+                            $(win.document.body).find('table th').css({
+                                'background': '#dfe7ef',
+                                'font-weight': 'bold'
+                            });
+                        }
+                    }
                 ],
-                pageLength: 10,
-                lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+                pageLength: 5,
+                lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, 'All']],
                 order: [[0, 'desc']],
                 language: {
                     search: "_INPUT_",
@@ -529,13 +569,45 @@ function initDataTable() {
             // Store the DataTable instance for later use
             window.employeeTable = employeeTable;
         }
+
+        if (!$.fn.dataTable.isDataTable('#attendance-records')) {
+            attendanceTable = $('#attendance-records').DataTable({
+                paging: true,
+                pageLength: 10,
+                lengthMenu: [[5, 10, 25, 50, 100], [5, 10, 25, 50, 100]],
+                order: [[0, 'desc']],
+                dom: 'lftip',
+                language: {
+                    emptyTable: 'No attendance records found',
+                    lengthMenu: 'Show _MENU_ entries',
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search attendance records...'
+                }
+            });
+            window.attendanceTable = attendanceTable;
+        } else {
+            window.attendanceTable = $('#attendance-records').DataTable();
+        }
         
         // Re-draw the table when the employees tab is shown
         document.querySelector('a[data-target="employees"]')?.addEventListener('click', function() {
             if (window.employeeTable) {
                 setTimeout(() => {
-                    window.employeeTable.columns.adjust().responsive.recalc();
+                    window.employeeTable.columns.adjust();
+
+                    if (
+                        window.employeeTable.responsive &&
+                        typeof window.employeeTable.responsive.recalc === 'function'
+                    ) {
+                        window.employeeTable.responsive.recalc();
+                    }
                 }, 100);
+            }
+        });
+
+        document.querySelector('a[data-target="attendance"]')?.addEventListener('click', function() {
+            if (window.attendanceTable) {
+                setTimeout(() => window.attendanceTable.columns.adjust(), 100);
             }
         });
     });

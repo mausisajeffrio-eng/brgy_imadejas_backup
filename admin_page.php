@@ -8,8 +8,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_attendance_records') {
     $records = [];
     $resAtt = $conn->query("SELECT id, employee_id, first_name, last_name, position, type, details, status, clock_in, clock_out, created_at 
                           FROM attendance_db 
-                          ORDER BY created_at DESC 
-                          LIMIT 10");
+                          ORDER BY created_at DESC");
     if ($resAtt && $resAtt->num_rows) {
         while ($row = $resAtt->fetch_assoc()) {
             $typeLower = strtolower($row['type']);
@@ -224,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Attendance System - Admin</title>
     <link rel="stylesheet" href="admin_page.css">
+    <link rel="stylesheet" href="admin_page_refinements.css?v=10">
     <!-- Line Awesome Icons -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/line-awesome@1.3.0/dist/line-awesome/css/line-awesome.min.css">
@@ -247,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Admin Page JavaScript -->
-    <script defer src="admin_page.js"></script>
+    <script defer src="admin_page.js?v=6"></script>
 </head>
 <body>
     <div class="sidebar">
@@ -383,16 +383,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div id="attendance" class="section">
-                <div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <strong><span class="las la-qrcode"></span> Attendance</strong>
-                    <div style="margin-left:auto;display:flex;gap:8px;">
+                <div class="card attendance-toolbar">
+                    <strong class="attendance-page-title"><span class="las la-qrcode"></span> Attendance</strong>
+                    <div class="attendance-mode-switch">
                         <button class="btn" id="tabBtn-daily" onclick="showPage('daily')">Daily</button>
                         <button class="btn" id="tabBtn-event" onclick="showPage('event')">Event</button>
                         <button class="btn" id="tabBtn-disaster" onclick="showPage('disaster')">Disaster</button>
                     </div>
                 </div>
-                <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
-                    <div style="flex:1;min-width:320px;">
+                <div class="attendance-layout">
+                    <div class="attendance-scanner-panel">
                         <div id="daily" class="page active">
                             <h3>Daily Attendance</h3>
                             <form action="attendance.php" method="post" style="width:100%;max-width:380px;margin-bottom:15px;">
@@ -451,9 +451,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div id="status-disaster" class="camera-status"></div>
                         </div>
                     </div>
-                    <div class="card" style="flex:1;min-width:320px;">
-                        <h3 style="margin-top:0;color:#0d6efd;">Attendance Records</h3>
-                        <div style="width:100%;overflow-x:auto;">
+                    <div class="card attendance-records-card">
+                        <div class="attendance-records-heading">
+                            <div>
+                                <h3>Attendance Records</h3>
+                                <p>Browse and search recorded check-ins</p>
+                            </div>
+                            <span class="attendance-records-icon las la-clipboard-list" aria-hidden="true"></span>
+                        </div>
+                        <div class="attendance-table-scroll">
                             <table id="attendance-records" class="table">
                                 <thead>
                                     <tr>
@@ -471,7 +477,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </thead>
                                 <tbody>
                                     <?php
-                                    $resAtt = $conn->query("SELECT id, employee_id, first_name, last_name, position, type, details, status, clock_in, clock_out, created_at FROM attendance_db ORDER BY created_at DESC LIMIT 10");
+                                    $resAtt = $conn->query("SELECT id, employee_id, first_name, last_name, position, type, details, status, clock_in, clock_out, created_at FROM attendance_db ORDER BY created_at DESC");
                                     if ($resAtt && $resAtt->num_rows) {
                                         while ($row = $resAtt->fetch_assoc()) {
                                             echo '<tr>'
@@ -487,8 +493,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 .'<td>'.htmlspecialchars($row['status']).'</td>'
                                             .'</tr>';
                                         }
-                                    } else {
-                                        echo '<tr><td colspan="10" class="text-center">No attendance records found</td></tr>';
                                     }
                                     ?>
                                 </tbody>
@@ -730,8 +734,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <span>Total Records: <strong><?php echo $cnt; ?></strong></span>
                     </div>
                 </div>
+                <div class="print-report-header">
+                    <h2>Attendance Report</h2>
+                    <p>
+                        Generated: <?php echo (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A'); ?>
+                        <span>|</span>
+                        Range: <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $reportRange))); ?>
+                        <span>|</span>
+                        Type: <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $reportType))); ?>
+                        <span>|</span>
+                        Status: <?php echo htmlspecialchars(ucwords($reportStatus)); ?>
+                    </p>
+                </div>
                 <div class="report-table-container">
-                <table class="table">
+                <table class="table" id="reportTable">
                     <thead>
                         <tr>
                             <th>ID</th><th>Employee ID</th><th>Name</th><th>Position</th><th>Clock In</th><th>Clock Out</th><th>Type</th><th>Details</th><th>Status</th>
